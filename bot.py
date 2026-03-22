@@ -15,6 +15,7 @@ load_dotenv()
 
 BOT_TOKEN = getenv("BOT_TOKEN")
 GROQ_API_KEY = getenv("GROQ_API_KEY")
+ADMIN_ID = int(getenv("ADMIN_ID"))
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 groq_client = Groq(api_key=GROQ_API_KEY)
@@ -29,6 +30,7 @@ def save_booking(name, service, date, time, user_id):
         if not file_exists:
             writer.writerow(["Имя", "Услуга", "Дата", "Время", "User ID"])
         writer.writerow([name, service, date, time, user_id])
+
 
 class BookingStates(StatesGroup):
     choosing_service = State()
@@ -132,6 +134,9 @@ async def on_name_entered(message: Message, state: FSMContext):
     
     # Сохраняем запись в CSV
     save_booking(name, service_name, date, time, message.from_user.id)
+    
+    # Отправляем уведомление администратору
+    await bot.send_message(ADMIN_ID, f"📋 Новая запись!\n\nИмя: {name}\nУслуга: {service_name}\nДата: {date}\nВремя: {time}\nTelegram ID: {message.from_user.id}")
     
     await message.answer(confirmation)
     await state.clear()
