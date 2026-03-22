@@ -1,10 +1,11 @@
 import asyncio
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton,CallbackQuery
 from os import getenv
 from dotenv import load_dotenv
 from aiogram.filters import Command
 from groq import Groq
+
 
 load_dotenv()
 
@@ -17,7 +18,37 @@ chat_histories = {}
 
 @dp.message(Command("start"))
 async def start(message: Message):
-    await message.answer("Привет! Я тестовый бот. Пока умею только отвечать на /start.")
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✂️ Записаться", callback_data="book")],
+        [InlineKeyboardButton(text="💰 Цены", callback_data="prices")],
+        [InlineKeyboardButton(text="📍 Адрес", callback_data="address")],
+    ])
+
+    await message.answer(
+        "Добро пожаловать в барбершоп «Чёрный кот»! Я помогу выбрать услугу и записаться.",
+        reply_markup=keyboard,
+    )
+
+@dp.callback_query(lambda call: call.data == "book")
+async def on_book(call: CallbackQuery):
+    await call.answer("Вы выбрали запись.")
+    await call.message.answer(
+        "Отлично! Чтобы записаться, напишите удобную дату и время, или нажмите на кнопку ниже:",
+    )
+
+@dp.callback_query(lambda call: call.data == "prices")
+async def on_prices(call: CallbackQuery):
+    await call.answer("Узнаём цены")
+    await call.message.answer(
+        "Наши цены:\n✂️ Мужская стрижка — 800₽\n🧔 Коррекция бороды — 500₽\n💈 Комплекс (стрижка + борода) — 1200₽",
+    )
+
+@dp.callback_query(lambda call: call.data == "address")
+async def on_address(call: CallbackQuery):
+    await call.answer("Смотрим адрес")
+    await call.message.answer(
+        "Мы находимся в Ярославле, ул. Советская, 12. Работаем ежедневно с 10:00 до 21:00.\n📞 +7 999 123-45-67",
+    )
 
 @dp.message(F.text)
 async def ai_reply(message: Message):
