@@ -7,6 +7,8 @@ from os import getenv
 from dotenv import load_dotenv
 from aiogram.filters import Command
 from groq import Groq
+import csv
+import os
 
 
 load_dotenv()
@@ -17,6 +19,16 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 groq_client = Groq(api_key=GROQ_API_KEY)
 chat_histories = {}
+
+BOOKINGS_FILE = "bookings.csv"
+
+def save_booking(name, service, date, time, user_id):
+    file_exists = os.path.exists(BOOKINGS_FILE)
+    with open(BOOKINGS_FILE, "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow(["Имя", "Услуга", "Дата", "Время", "User ID"])
+        writer.writerow([name, service, date, time, user_id])
 
 class BookingStates(StatesGroup):
     choosing_service = State()
@@ -117,6 +129,9 @@ async def on_name_entered(message: Message, state: FSMContext):
 Спасибо за выбор! Ждём вас в барбершопе «Чёрный кот»
 Если вам нужно изменить запись, звоните: +7 999 123-45-67
     """
+    
+    # Сохраняем запись в CSV
+    save_booking(name, service_name, date, time, message.from_user.id)
     
     await message.answer(confirmation)
     await state.clear()
