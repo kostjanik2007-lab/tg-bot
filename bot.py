@@ -1,6 +1,8 @@
 import asyncio
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton,CallbackQuery
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.context import FSMContext
 from os import getenv
 from dotenv import load_dotenv
 from aiogram.filters import Command
@@ -16,6 +18,12 @@ dp = Dispatcher()
 groq_client = Groq(api_key=GROQ_API_KEY)
 chat_histories = {}
 
+class BookingStates(StatesGroup):
+    choosing_service = State()
+    choosing_date = State()
+    choosing_time = State()
+    entering_name = State()
+
 @dp.message(Command("start"))
 async def start(message: Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -30,11 +38,31 @@ async def start(message: Message):
     )
 
 @dp.callback_query(lambda call: call.data == "book")
-async def on_book(call: CallbackQuery):
-    await call.answer("Вы выбрали запись.")
-    await call.message.answer(
-        "Отлично! Чтобы записаться, напишите удобную дату и время, или нажмите на кнопку ниже:",
-    )
+async def on_book(call: CallbackQuery, state: FSMContext):
+    await call.answer("Запускаем процесс записи")
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✂️ Мужская стрижка (800₽)", callback_data="service_haircut")],
+        [InlineKeyboardButton(text="🧔 Коррекция бороды (500₽)", callback_data="service_beard")],
+        [InlineKeyboardButton(text="💈 Комплекс (1200₽)", callback_data="service_complex")],
+    ])
+    
+    await call.message.answer("Выберите услугу:", reply_markup=keyboard)
+    await state.set_state(BookingStates.choosing_service)
+
+@dp.callback_query(F.data.in_({"service_haircut", "service_beard", "service_complex"}))
+async def on_service_selected(call: CallbackQuery, state: FSMContext):
+    service_map = {
+        "service_haircut": "Мужская стрижка (800₽)",
+        "service_beard": "Коррекция бороды (500₽)",
+        "service_complex": "Комплекс (1200₽)",
+    }
+    
+    service_name = service_map.get(call.data, "Услуга")
+    await state.update_data(service=call.data)
+    await call.answer(f"Вы выбрали: {service_name}")
+    await call.message.answer("Введите удобную дату в формате ДД.ММ.ГГГГ (например, 25.03.2026):")
+    await state.set_state(BookingStates.choosing_date)
 
 @dp.callback_query(lambda call: call.data == "prices")
 async def on_prices(call: CallbackQuery):
@@ -49,6 +77,49 @@ async def on_address(call: CallbackQuery):
     await call.message.answer(
         "Мы находимся в Ярославле, ул. Советская, 12. Работаем ежедневно с 10:00 до 21:00.\n📞 +7 999 123-45-67",
     )
+
+@dp.message(BookingStates.choosing_date)
+async def on_date_entered(message: Message, state: FSMContext):
+    await state.update_data(date=message.text)
+    await message.answer("Спасибо! Введите удобное время в формате ЧЧ:МИ (например, 14:30):")
+    await state.set_state(BookingStates.choosing_time)
+
+@dp.message(BookingStates.choosing_time)
+async def on_time_entered(message: Message, state: FSMContext):
+    await state.update_data(time=message.text)
+    await message.answer("Введите ваше имя:")
+    await state.set_state(BookingStates.entering_name)
+
+@dp.message(BookingStates.entering_name)
+async def on_name_entered(message: Message, state: FSMContext):
+    await state.update_data(name=message.text)
+    data = await state.get_data()
+    
+    service_map = {
+        "service_haircut": "✂️ Мужская стрижка (800₽)",
+        "service_beard": "🧔 Коррекция бороды (500₽)",
+        "service_complex": "💈 Комплекс (1200₽)",
+    }
+    
+    service_name = service_map.get(data.get("service"), "Услуга")
+    date = data.get("date", "—")
+    time = data.get("time", "—")
+    name = message.text
+    
+    confirmation = f"""
+✅ Ваша запись подтверждена!
+
+Услуга: {service_name}
+Дата: {date}
+Время: {time}
+Имя: {name}
+
+Спасибо за выбор! Ждём вас в барбершопе «Чёрный кот»
+Если вам нужно изменить запись, звоните: +7 999 123-45-67
+    """
+    
+    await message.answer(confirmation)
+    await state.clear()
 
 @dp.message(F.text)
 async def ai_reply(message: Message):
