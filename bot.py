@@ -9,9 +9,18 @@ from aiogram.filters import Command
 from groq import Groq
 import csv
 import os
+import gspread
+from google.oauth2.service_account import Credentials
 
 
 load_dotenv()
+
+GOOGLE_SHEET_ID = getenv("GOOGLE_SHEET_ID")
+
+scopes = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+creds = Credentials.from_service_account_file("credentials.json", scopes=scopes)
+gs_client = gspread.authorize(creds)
+sheet = gs_client.open_by_key(GOOGLE_SHEET_ID).sheet1
 
 BOT_TOKEN = getenv("BOT_TOKEN")
 GROQ_API_KEY = getenv("GROQ_API_KEY")
@@ -30,6 +39,11 @@ def save_booking(name, service, date, time, user_id):
         if not file_exists:
             writer.writerow(["Имя", "Услуга", "Дата", "Время", "User ID"])
         writer.writerow([name, service, date, time, user_id])
+    
+    # Сохраняем в Google Sheets
+    if sheet.row_values(1) == []:
+        sheet.append_row(["Имя", "Услуга", "Дата", "Время", "User ID"])
+    sheet.append_row([name, service, date, time, str(user_id)])
 
 
 class BookingStates(StatesGroup):
