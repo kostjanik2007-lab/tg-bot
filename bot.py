@@ -1,4 +1,5 @@
 import asyncio
+import json
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.fsm.state import State, StatesGroup
@@ -17,8 +18,10 @@ load_dotenv()
 
 GOOGLE_SHEET_ID = getenv("GOOGLE_SHEET_ID")
 
+
 scopes = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = Credentials.from_service_account_file("credentials.json", scopes=scopes)
+creds_json = json.loads(getenv("GOOGLE_CREDENTIALS"))
+creds = Credentials.from_service_account_info(creds_json, scopes=scopes)
 gs_client = gspread.authorize(creds)
 sheet = gs_client.open_by_key(GOOGLE_SHEET_ID).sheet1
 
